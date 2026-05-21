@@ -1,0 +1,113 @@
+git clone https://github.com/halaBelmo/hugging-face-classifier.git
+cd hugging-face-classifier
+git checkout dev
+
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python --version
+
+python -m pip install --upgrade pip
+pip install -r requirements.txt 
+
+$env:GITHUB_USERNAME="PC"
+python -m madewithml.train --num-epochs 10 
+
+python -m madewithml.serve --run_id TON_RUN_ID
+
+
+curl http://127.0.0.1:8000/
+curl -X POST "http://127.0.0.1:8000/predict/?title=YOLO%20object%20detection&description=Computer%20vision%20project%20using%20CNN%20and%20object%20detection"
+http://127.0.0.1:8000/docs
+
+
+##CI/CD 
+1. Cloner le projet
+
+git clone https://github.com/halaBelmo/hugging-face-classifier.git
+cd hugging-face-classifier
+git checkout hala-mlops
+2. Lancer Jenkins
+
+docker compose up -d --build jenkins
+Ouvrir Jenkins :
+
+http://localhost:8081
+Mot de passe initial :
+
+docker compose exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+3. Créer le job Jenkins
+
+Créer un job Pipeline.
+
+Configuration :
+
+Definition: Pipeline script from SCM
+SCM: Git
+Repository URL: https://github.com/halaBelmo/hugging-face-classifier.git
+Branch: */hala-mlops
+Script Path: Jenkinsfile
+4. Lancer CI/CD
+
+Dans Jenkins :
+
+Build with Parameters
+Mettre :
+
+RUN_TRAIN=true
+RUN_EVALUATE=true
+BUILD_DOCKER=true
+DEPLOY_LOCAL=true
+DEPLOY_COMPOSE=false
+PUSH_DOCKER=false
+
+TRAIN_EPOCHS=1
+TRAIN_SAMPLES=100
+TRAIN_BATCH_SIZE=8
+
+DOCKER_IMAGE=hugging-face-classifier
+APP_PORT=8001
+EVALUATE_RUN_ID=
+Puis lancer le build.
+
+5. Tester l’API
+
+Quand Jenkins affiche :
+
+Finished: SUCCESS
+Tester :
+
+curl http://localhost:8001/
+Puis :
+
+curl -X POST "http://localhost:8001/predict/?title=YOLO%20object%20detection&description=Computer%20vision%20project%20using%20CNN"
+6. Lancer Prometheus + Grafana
+
+Récupérer le run_id dans Jenkins :
+
+Deploying run_id: XXXXX
+Puis :
+
+docker rm -f hugging-face-classifier-api
+export RUN_ID="XXXXX"
+export DOCKER_IMAGE="hugging-face-classifier:latest"
+docker compose --profile serve up -d hugging-face-serve prometheus grafana
+Sur PowerShell Windows :
+
+docker rm -f hugging-face-classifier-api
+$env:RUN_ID="XXXXX"
+$env:DOCKER_IMAGE="hugging-face-classifier:latest"
+docker compose --profile serve up -d hugging-face-serve prometheus grafana
+Ouvrir :
+
+API:        http://localhost:8000/
+Metrics:    http://localhost:8000/metrics
+Prometheus: http://localhost:9090
+Grafana:    http://localhost:3001
+Grafana :
+
+user: admin
+pass: admin
+Dans Prometheus :
+
+Status -> Targets
+Vérifier que hugging-face-classifier est UP.

@@ -1,0 +1,26 @@
+FROM docker:29.2.1-cli AS docker-cli
+
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        docker-compose \
+        git \
+        python3 \
+        python3-venv \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    printf '#!/bin/sh\nexec docker-compose "$@"\n' > /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+COPY cicd/jenkins/plugins.txt /usr/share/jenkins/ref/plugins.txt
+RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+
+USER jenkins
