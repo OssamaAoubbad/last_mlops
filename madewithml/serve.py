@@ -1,11 +1,13 @@
 import argparse
 import json
+import time
 from http import HTTPStatus
 from typing import Dict
 
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI
+from prometheus_client import Counter, Histogram
 from starlette.requests import Request
 
 from madewithml import evaluate, predict
@@ -15,6 +17,27 @@ try:
     from prometheus_fastapi_instrumentator import Instrumentator
 except ImportError:  # pragma: no cover - optional local dependency
     Instrumentator = None
+
+prediction_requests_total = Counter(
+    "prediction_requests_total",
+    "Total number of prediction requests",
+    ["run_id", "threshold"],
+)
+prediction_errors_total = Counter(
+    "prediction_errors_total",
+    "Total number of prediction requests below confidence threshold",
+    ["run_id"],
+)
+model_inference_duration_seconds = Histogram(
+    "model_inference_duration_seconds",
+    "Prediction latency in seconds",
+    ["run_id", "handler"],
+)
+prediction_label_total = Counter(
+    "prediction_label_total",
+    "Distribution of predicted labels",
+    ["run_id", "label"],
+)
 
 app = FastAPI(
     title="Made With ML",
@@ -82,13 +105,24 @@ def create_app(run_id: str, threshold: float = 0.9) -> FastAPI:
     async def _predict(request: Request, title: str = "", description: str = ""):
         data = await get_prediction_input(request=request, title=title, description=description)
         sample_df = pd.DataFrame([{"title": data["title"], "description": data["description"], "tag": "other"}])
-        results = predict.predict_proba(df=sample_df, predictor=predictor)
 
+        start_time = time.perf_counter()
+        results = predict.predict_proba(df=sample_df, predictor=predictor)
+        duration = time.perf_counter() - start_time
+
+        errors = 0
         for i, result in enumerate(results):
             pred = result["prediction"]
             prob = result["probabilities"]
             if prob[pred] < threshold:
+                errors += 1
                 results[i]["prediction"] = "other"
+
+            prediction_label_total.labels(run_id=run_id, label=results[i]["prediction"]).inc()
+
+        prediction_requests_total.labels(run_id=run_id, threshold=str(threshold)).inc()
+        prediction_errors_total.labels(run_id=run_id).inc(errors)
+        model_inference_duration_seconds.labels(run_id=run_id, handler="/predict").observe(duration)
 
         return {"results": make_json_safe(results)}
 

@@ -53,6 +53,41 @@ services:
     networks:
       - mlops-net
 
+  node-exporter:
+    profiles:
+      - monitoring
+    image: prom/node-exporter:v1.6.1
+
+    ports:
+      - "9100:9100"
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    restart: unless-stopped
+    networks:
+      - mlops-net
+
+  cadvisor:
+    profiles:
+      - monitoring
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: unless-stopped
+    networks:
+      - mlops-net
+
   prometheus:
     image: prom/prometheus:v2.52.0
     ports:

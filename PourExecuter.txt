@@ -25,7 +25,7 @@ http://127.0.0.1:8000/docs
 
 git clone https://github.com/halaBelmo/hugging-face-classifier.git
 cd hugging-face-classifier
-git checkout hala-mlops
+git checkout main
 2. Lancer Jenkins
 
 docker compose up -d --build jenkins
